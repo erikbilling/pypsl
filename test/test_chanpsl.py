@@ -1,23 +1,21 @@
 
 import unittest
+from inputdata import singen
+from chanpsl import ChanPsl
 
-class TestStringMethods(unittest.TestCase):
+class TestChanPsl(unittest.TestCase):
 
-    def test_upper(self):
-        self.assertEqual('foo'.upper(), 'FOO')
+    def setUp(self):
+        self.psl = ChanPsl()
 
-    def test_isupper(self):
-        self.assertTrue('FOO'.isupper())
-        self.assertFalse('Foo'.isupper())
+    def test_sinus_prediction(self):
+        history = []
+        for v in singen():
+            if history:
+                result = self.psl.trainSample(history,target=v)
+            history.append(v)
 
-    def test_split(self):
-        s = 'hello world'
-        self.assertEqual(s.split(), ['hello', 'world'])
-        # check that s.split fails when the separator is not a string
-        with self.assertRaises(TypeError):
-            s.split(2)
 
 if __name__ == '__main__':
     unittest.main()
 
-    
