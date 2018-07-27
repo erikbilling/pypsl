@@ -7,8 +7,9 @@ import numpy as np
 from chanpy import Cos2ChannelBasis, ChannelVector
 
 class ChanPsl(object):
-    def __init__(self, nChannels=11, minValue=0., maxValue=1., channelBasis=None, memory=None):
+    def __init__(self, nChannels=11, minValue=0., maxValue=1., channelBasis=None, memory=None, self.noise = 0):
         self.memory = memory # Initated when first sample is provided
+        self.noise = noise
         self.__basis__ = channelBasis or Cos2ChannelBasis()
         if not channelBasis: 
             self.__basis__.setParameters(nChannels, minValue, maxValue)
@@ -34,5 +35,5 @@ class ChanPsl(object):
 
     def predictVector(self,v):
         res = ChannelVector(self.__basis__)
-        res[:] = np.dot(v,self.memory + np.random.rand(*self.memory.shape)*10)
+        res[:] = np.dot(v,self.memory if not self.noise else self.memory + np.random.rand(*self.memory.shape)*self.noise)
         return res
