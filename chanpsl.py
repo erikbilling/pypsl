@@ -13,14 +13,14 @@ class ChanPsl(object):
         if not channelBasis: 
             self.__basis__.setParameters(nChannels, minValue, maxValue)
         
-    def encodeSample(self,s):
-        v = self.__basis__.encode(s)
+    def encode(self,s):
+        return self.__basis__.encode(s)
+
+    def trainSample(self,history,target):
+        v = self.encode(history[-1])
+        t = self.encode(target)
         if self.memory is None:
             self.memory = np.zeros([v.size,v.size])
         else: 
             assert v.size**2 == self.memory.size
-        return v
-
-    def trainSample(self,history,target):
-        v = self.encodeSample(history[-1])
-        t = self.encodeSample(target)
+        self.memory += v.transpose()*t/1.125
