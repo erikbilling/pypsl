@@ -8,7 +8,6 @@ from chanpy import Cos2ChannelBasis, ChannelVector
 
 class Pcc(object):
     def __init__(self, nChannels=11, minValue=0., maxValue=1., channelBasis=None, memory=None):
-        self.contextLookback = 10
         self.memory = memory # Initated when first sample is provided
         self.__basis__ = channelBasis or Cos2ChannelBasis()
         if not channelBasis: 
@@ -16,6 +15,7 @@ class Pcc(object):
         
         self.memory = np.zeros([self.__basis__.getNrChannels(),self.__basis__.getNrChannels()])
         self.memory2 = np.zeros([self.__basis__.getNrChannels(),self.__basis__.getNrChannels()])
+
     @property
     def minValue(self):
         return self.__basis__.getMinV()
@@ -40,37 +40,44 @@ class Pcc(object):
             return self.__basis__.encode(s)
 
     def decode(self,v):
-        if isinstance(v,ChannelVector):
-            cv = v
-        else:
-            cv = ChannelVector(self.__basis__)
-            cv[:] = v
+        cv = ChannelVector(self.__basis__)
+        cv[:] = v
         return cv.decode().ravel()[0]
 
-    def encodeContext(self,history):
-        return self.encode(history[-50:-1])
+    def encodeInput(self,i):
+        if isinstance(i,InputTrace):
+            return i.__last__
+        elif isinstance(i,list):
+            return self.encode(i[-1])
+        else:
+            return self.encode(i)
+
+    def encodeContext(self,i):
+        return i.__trace__ if isinstance(i,InputTrace) else self.encode(i[-50:-1])
 
     def trainSample(self,history,target):
-        v = self.encode(history[-1])
+        v = self.encodeInput(history)
         context = self.encodeContext(history)
         t = self.encode(target)
-        p = self.predict(history,decode=False)
+        p = self.predictVector(v,context)
         err = t-p
         #err[err<0] = 0
         err2 = p-t
         err2[err2<0] = 0
-        self.memory += v.transpose()*(err/1.125)/50.
-        self.memory2 += context.transpose()*(err/1.125/50.)
+        self.memory += v.transpose()*(err/1.125)/100.
+        self.memory2 += context.transpose()*(err/1.125/100.)
         return err
 
-    def predict(self,history,decode=True):
-        return self.predictSample(history[-1] if history else None, self.encodeContext(history), decode)
+    def predict(self,val,decode=True):
+        res = self.predictVector(self.encodeInput(val),self.encodeContext(val))
+        return res.decode().ravel()[0] if decode else res
 
     def predictSample(self,val,context=None,decode=True):
-        res = self.predictVector(self.encode(val),context)
+        res = self.predictVector(self.encodeInput(val),context or self.encodeContext(val))
         return res.decode().ravel()[0] if decode else res
 
     def predictVector(self,v,context=None):
+        #print(v.shape,self.memory.shape,context.shape,self.memory2.shape)
         res = ChannelVector(self.__basis__)
         res[:] = np.dot(v,self.memory)
         if context is not None:
@@ -78,20 +85,18 @@ class Pcc(object):
         return res
 
 class InputTrace(object):
-    def __init__(self,pcc,retention=0.2):
+    def __init__(self,pcc,retention=0.5):
         self.__pcc__ = pcc
-        self.__cv__ = ChannelVector(pcc.__basis__)
+        self.__trace__ = ChannelVector(pcc.__basis__)
+        self.__last__ = ChannelVector(pcc.__basis__)
         self.retention = retention
 
     def addSample(self,val):
-        self.__cv__ *= self.retention
-        if val is not None:
-            self.__cv__.addSample(val)
+        self.__trace__ *= self.retention
+        self.__trace__ += self.__last__
+        self.__last__ = self.__pcc__.encode(val)
+        return self 
 
-    def train(self,data):
-        lastv = None
-        for v in data:
-            if lastv:
-                self.addSample(lastv)
-                self.__pcc__.train(self,v)
-            lastv = v
+    def reset(self):
+        self.__init__(self.__pcc__,self.retention)           
+
