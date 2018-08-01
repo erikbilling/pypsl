@@ -27,17 +27,32 @@ Usage
 Let's start with a very basic example where *PCC* is used to predict a sinus curve:
 
 ~~~~python
-    import numpy as np
-    from test.inputdata import singen
-    from pcc import Pcc
+import numpy as np
+from test.inputdata import singen
+from pcc import Pcc
 
-    pcc = Pcc(25,-1,1) # Creates an instance of Pcc with 25 channels, spanning over a single dimension from -1 and 1. 
-    data = [v for v in singen(length=1000)] # And the sample data
-    for trace,v in pcc.trace(data): # Creates an pcc.InputTrace which provides a channel code with decaying look-back. 
-        pcc.train(trace,v) # Trains the model to associate the provided trace with the target value v.
+pcc = Pcc(25,-1,1) # Creates an instance of Pcc with 25 channels, spanning over a single dimension from -1 and 1. 
+data = [v for v in singen(length=1000)] # And the sample data
+for trace,v in pcc.trace(data): # Creates an pcc.InputTrace which provides a channel code with decaying look-back. 
+    pcc.train(trace,v) # Trains the model to associate the provided trace with the target value v.
 
-    result = [pcc.predict(trace) for trace,v in pcc.trace(data)] # Compute 1-step predictions from data
-    mse = np.square(np.array(result)-np.array(data)).mean() # Compare with the original data
-    print('MSE: {0:.6f}'.format(mse))
+result = [pcc.predict(trace) for trace,v in pcc.trace(data)] # Compute 1-step predictions from data
+mse = np.square(np.array(result)-np.array(data)).mean() # Compare with the original data
+print('MSE: {0:.6f}'.format(mse))
 ~~~~
 
+This example is testing the model directly on the training data, so we should expect a very small mean square error (*less than 0.001*). 
+
+Next, let's see how well the model is able to reconstruct the sequence:
+
+~~~~python
+feed = data[:round(len(data)/4)]
+test = data[round(len(data)/4):]
+result = [v for v in pcc.gen(feed,length=len(test))]
+mse = np.square(np.array(result)-np.array(test)).mean()
+mse50 = np.square(np.array(result[:50])-np.array(test[:50])).mean()
+print('MSE full sequence: {0:.6f}'.format(mse))
+print('MSE first 50: {0:.6f}'.format(mse50))
+~~~~
+
+This will approximately reproduce the sinus wave. Since the reconstruction will go out of phase with the test data, mse is expected to be close to 1.0. However, we also print the mse for the first 50 samples, this error is expected to be much smaller.
