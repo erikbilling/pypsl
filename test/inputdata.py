@@ -1,19 +1,23 @@
-import math
+import math, itertools
+import numpy as np
 
-def singen(start=0,stop=100,step=0.1):
-    i = start
-    while stop is None or i<stop:
-        yield math.sin(i)
-        i+=step
+def singen(length=100,start=0.,step=0.1):
+    v = start
+    for i in itertools.count():
+        yield math.sin(v)
+        v+=step
+        if i >= length: 
+            break
 
-def trigen(start=0,stop=100,step=1.,amplitude=1.,plateau=0):
-    i = start
-    v = 0
-    yield v
-    while stop is None or i<stop:
-        v += step
+def trigen(length=100,start=0,step=1.,amplitude=1.,plateau=0):
+    v = start
+    count = itertools.count()
+    for i in count:
+        if i >= length: break
         yield v
         if abs(v) >= amplitude: 
-            for j in range(plateau): yield v
-            step = step * -1
-        i += 1
+            for j in range(plateau):
+                if next(count) >= length: break
+                yield v
+            step = abs(step) * -1 * np.sign(step)
+        v += step
