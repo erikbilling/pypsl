@@ -1,7 +1,7 @@
 
 import numpy as np
 import unittest
-from test.inputdata import singen
+from test.inputdata import singen, trigen
 from pcc import Pcc
 
 class TestPcc(unittest.TestCase):
@@ -46,6 +46,18 @@ class TestPcc(unittest.TestCase):
             pcc.train(trace,v)
 
         result = [pcc.predict(trace) for trace,v in pcc.trace(data)]
+        mse = np.square(np.array(result)-np.array(data)).mean()
+        print('MSE: {0:.6f}'.format(mse))
+        self.assertLess(mse,0.005)
+
+    def test_sequence_reconstruction(self):
+        pcc = Pcc(25,-1,1)
+        N = 1000
+        data = [v for v in singen(length=N)]
+        for trace,v in pcc.trace(data):
+            pcc.train(trace,v)
+
+        result = [v for v in pcc.gen(data)]
         mse = np.square(np.array(result)-np.array(data)).mean()
         print('MSE: {0:.6f}'.format(mse))
         self.assertLess(mse,0.005)
