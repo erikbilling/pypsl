@@ -42,8 +42,6 @@ class Pcc(object):
         else:
             s += random()*self.noise-self.noise/2. if self.noise else 0
             cv = self.__basis__.encode(s)
-            #if self.noise:
-            #    cv[:] += np.random.rand(cv.size) * self.noise
             return cv
 
     def decode(self,v):
@@ -60,7 +58,7 @@ class Pcc(object):
             return self.encode(i)
 
     def encodeContext(self,i):
-        return i.__trace__ if isinstance(i,InputTrace) else self.encode(i[-50:-1])
+        return i.__trace__ if isinstance(i,InputTrace) else None
 
     def train(self,val,target):
         v = self.encodeInput(val)
@@ -85,27 +83,28 @@ class Pcc(object):
             res[:] += np.dot(context,self.memory2)
         return res
 
-    def newTrace(self,values,retention=0.8):
-        return InputTrace(self,retention,values)
-
     def trace(self,data,retention=0.5):
         t = InputTrace(self,retention)
         for v in data:
             yield (t,v)
             t.addSample(v)
 
-    def gen(self,data,length=100,retention=0.8):
-        t = InputTrace(self,retention,data)
+    def gen(self,data,length=None,retention=0.8,includeSourceData=False):
+        if length is None: length=len(data)
+        t = InputTrace(self,retention)
+
         for v in data:
-            yield v
-        for i in itertools.count():
-            if i + len(data) >= length: break
+            if includeSourceData: yield t,v
+            t.addSample(v)
+            if t.length >= length and includeSourceData: break
+
+        while t.length < length + (len(data) if not includeSourceData else 0):
             p = self.predict(t)
             yield p
             t.addSample(p)
 
 class InputTrace(object):
-    def __init__(self,pcc,retention=0.5,val=None,decodePrediction=True):
+    def __init__(self,pcc,retention=0.8,val=None,decodePrediction=True):
         self.length = 0
         self.__pcc__ = pcc
         self.__trace__ = ChannelVector(pcc.__basis__)
