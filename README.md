@@ -46,13 +46,43 @@ This example is testing the model directly on the training data, so we should ex
 Next, let's see how well the model is able to reconstruct the sequence:
 
 ~~~~python
-feed = data[:round(len(data)/4)]
+pcc = Pcc(25,-1,1)
+training = data[:round(len(data)/4)]
 test = data[round(len(data)/4):]
-result = [v for v in pcc.gen(feed,length=len(test))]
+for epoch in range(50):
+    for trace,v in pcc.trace(training): 
+        pcc.train(trace,v)
+result = [v for v in pcc.gen(training,length=len(test))]
 mse = np.square(np.array(result)-np.array(test)).mean()
 mse50 = np.square(np.array(result[:50])-np.array(test[:50])).mean()
 print('MSE full sequence: {0:.6f}'.format(mse))
 print('MSE first 50: {0:.6f}'.format(mse50))
 ~~~~
 
-This will approximately reproduce the sinus wave. Since the reconstruction will go out of phase with the test data, mse is expected to be close to 1.0. However, we also print the mse for the first 50 samples, this error is expected to be much smaller.
+This will approximately reproduce the sinus wave. Since the reconstruction will go out of phase with the test data, mse is expected to be close to 0.5. However, we also print the mse for the first 50 samples, this error is expected to be much smaller.
+
+An important property of PCC is that it, although not reproducing an exact match of the original data, capture its basic properties. These are best illustrated by plotting the data. 
+
+If you have matplotlib installed, you may try to visualize the reproduced data: 
+
+~~~~python
+fig,ax = plt.subplots(1,1)
+ax.plot(result)
+ax.plot(test)
+~~~~
+
+If we want a very precise long term generation, a more powerful model is needed. This can be chaieved by increasing the number of channels:
+
+~~~~python
+pcc = Pcc(200,-1,1) # Creating a model with 200 channels
+training = data[:round(len(data)/4)]
+test = data[round(len(data)/4):]
+for epoch in range(200):
+    for trace,v in pcc.trace(training): 
+        pcc.train(trace,v)
+result = [v for v in pcc.gen(training,length=len(test))]
+mse = np.square(np.array(result)-np.array(test)).mean()
+print('MSE full sequence: {0:.6f}'.format(mse))
+~~~~
+
+This should reproduce an mse close to 0.0. 
