@@ -2,7 +2,7 @@
 import numpy as np
 import unittest
 from test.inputdata import singen, trigen
-from pcc import Pcc
+from pcc import Pcc, UniformChannelEncoder
 
 class TestPcc(unittest.TestCase):
 
@@ -12,19 +12,6 @@ class TestPcc(unittest.TestCase):
     def test_zero_prediction(self):
         pcc = Pcc(11,-1,1)
         self.assertEqual(pcc.predict(0),0.0)
-
-    def test_encode(self):
-        N = 11
-        pcc = Pcc(N,-1,1)
-        p = pcc.encode(0)
-        self.assertEqual(p.sum(),1.5)
-        self.assertEqual(p.size,N)
-
-    def test_encode_list(self):
-        N = 11
-        pcc = Pcc(N,-1,1)
-        p = pcc.encode([0])
-        self.assertEqual((p-pcc.encode(0)).sum(),0)
 
     def test_training_error(self):
         pcc = Pcc(25,-1,1)
@@ -39,7 +26,7 @@ class TestPcc(unittest.TestCase):
         self.assertLess(mse,0.001)
 
     def test_noise_error(self):
-        pcc = Pcc(25,-1,1,noise=0.05)
+        pcc = Pcc(UniformChannelEncoder(25,-1,1,noise=0.05))
         N = 1000
         data = [v for v in singen(length=N)]
         for trace,v in pcc.trace(data):
@@ -62,11 +49,22 @@ class TestPcc(unittest.TestCase):
         print('MSE: {0:.6f}'.format(mse))
         self.assertLess(mse,0.005)
 
-    def test_dot(self):
+
+class TestUniformEncoder(unittest.TestCase):
+
+    def test_encode(self):
         N = 11
-        pcc = Pcc(N,-1,1)
-        v = pcc.encode(0.1)
-        pv = np.dot(v,pcc.memory)
+        encoder = UniformChannelEncoder(N,-1,1)
+        p = encoder.encode(0)
+        self.assertEqual(p.sum(),1.5)
+        self.assertEqual(p.size,N)
+
+    def test_encode_list(self):
+        N = 11
+        encoder = UniformChannelEncoder(N,-1,1)
+        p = encoder.encode([0])
+        self.assertEqual((p-encoder.encode(0)).sum(),0)
+
 
 if __name__ == '__main__':
     unittest.main()
