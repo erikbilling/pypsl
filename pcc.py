@@ -7,7 +7,6 @@ import numpy as np
 from chanpy import Cos2ChannelBasis, ChannelVector
 from collections import Collection
 import itertools
-from random import random
 
 class Pcc(object):
     def __init__(self, nChannels=11, minValue=0., maxValue=1., channelBasis=None, memory=None, learningRate=0.01, noise=None):
@@ -40,7 +39,10 @@ class Pcc(object):
                 e += self.encode(v) / (len(s)-i)
             return e
         else:
-            s += random()*self.noise-self.noise/2. if self.noise else 0
+            if callable(self.noise):
+                s += self.noise()
+            elif self.noise:
+                s += np.random.randn()*self.noise-self.noise/2.
             cv = self.__basis__.encode(s)
             return cv
 
@@ -100,7 +102,7 @@ class Pcc(object):
 
         while t.length < length + (len(data) if not includeSourceData else 0):
             p = self.predict(t)
-            yield p
+            yield t,p
             t.addSample(p)
 
 class InputTrace(object):

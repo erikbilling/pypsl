@@ -1,7 +1,7 @@
 import math, itertools
 import numpy as np
 
-def singen(length=100,start=0.,step=0.1):
+def singen(length=100,start=0.,step=0.1*math.pi):
     v = start
     for i in itertools.count():
         yield math.sin(v)

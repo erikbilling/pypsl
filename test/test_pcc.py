@@ -39,7 +39,7 @@ class TestPcc(unittest.TestCase):
         self.assertLess(mse,0.001)
 
     def test_noise_error(self):
-        pcc = Pcc(25,-1,1,noise=0.1)
+        pcc = Pcc(25,-1,1,noise=0.05)
         N = 1000
         data = [v for v in singen(length=N)]
         for trace,v in pcc.trace(data):
@@ -48,16 +48,16 @@ class TestPcc(unittest.TestCase):
         result = [pcc.predict(trace) for trace,v in pcc.trace(data)]
         mse = np.square(np.array(result)-np.array(data)).mean()
         print('MSE: {0:.6f}'.format(mse))
-        self.assertLess(mse,0.005)
+        self.assertLess(mse,0.05)
 
     def test_sequence_reconstruction(self):
         pcc = Pcc(25,-1,1)
         N = 1000
-        data = [v for v in singen(length=N)]
+        data = [v for v in trigen(length=N)]
         for trace,v in pcc.trace(data):
             pcc.train(trace,v)
 
-        result = [v for v in pcc.gen(data)]
+        result = [v for trace,v in pcc.gen(data)]
         mse = np.square(np.array(result)-np.array(data)).mean()
         print('MSE: {0:.6f}'.format(mse))
         self.assertLess(mse,0.005)
@@ -67,12 +67,6 @@ class TestPcc(unittest.TestCase):
         pcc = Pcc(N,-1,1)
         v = pcc.encode(0.1)
         pv = np.dot(v,pcc.memory)
-
-    def test_trace(self):
-        # p2 = Pcc(25,-1,1)
-        # trace = InputTrace(p2)
-        # trace.train(data)     
-        pass   
 
 if __name__ == '__main__':
     unittest.main()
