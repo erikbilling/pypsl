@@ -41,37 +41,40 @@ class Pcc:
             res[:] += np.dot(context,self.memory2)
         return res
 
-    def trace(self,data,retention=0.5):
+    def trace(self,data,retention=0.8,buffer=10):
         t = InputTrace(self.encoder,retention)
         if isinstance(self.encoder,AbstractDiffEncoder):
-            lv = 0
+            b = buffer if isinstance(buffer,MeanBuffer) else MeanBuffer(buffer)
             for v in data:
-                yield (t,v,v-lv)
-                t.addSample(v-lv)
-                lv = v
+                dv = v-b.mean()
+                yield (t,v,dv)
+                t.addSample(dv)
+                b.put(v)
         else:
             for v in data:
                 yield (t,v)
                 t.addSample(v)
 
-    def gen(self,data,length=None,retention=0.8,includeSourceData=False):
+    def gen(self,data,length=None,retention=0.8,buffer=10,includeSourceData=False):
         if length is None: length=len(data)
         t = InputTrace(self.encoder,retention)
 
         if isinstance(self.encoder,AbstractDiffEncoder):
-            lv = np.array([0.])
+            b = buffer if isinstance(buffer,MeanBuffer) else MeanBuffer(buffer)
             for v in data:
-                if includeSourceData: yield t,v,v-lv
-                t.addSample(v-lv)
-                lv[:] = v
+                dv = v-b.mean()
+                if includeSourceData: yield t,v,dv
+                t.addSample(dv)
+                b.put(v)
                 if t.length >= length and includeSourceData: 
                     break
                 
             while t.length < length + (len(data) if not includeSourceData else 0):
                 dv = self.predict(t)
-                lv += dv
-                yield t,lv,dv
+                v = b.mean()+dv
+                yield t,v,dv
                 t.addSample(dv)
+                b.put(v)
         else:
             for v in data:
                 if includeSourceData: yield t,v
@@ -237,22 +240,30 @@ class MeanBuffer:
     def __init__(self,size):
         self.buffer = np.zeros(size)
         self.i = -1
+        self.n = 0
 
     @property
     def size(self):
         return self.buffer.size
 
     def mean(self):
-        return self.buffer.mean()
+        if self.n == 0:
+            return 0
+        elif self.n < self.buffer.size:
+            return self.buffer[:self.n].mean()
+        else:
+            return self.buffer.mean()
 
     def put(self,v):
         self.i = (self.i+1)%self.buffer.size
+        self.n += 1
         self.buffer[self.i] = v
 
 
-def integrate(data,initv=0):
-    v = np.empty(len(data))
-    for i,d in enumerate(data): 
-        initv = initv + d
-        v[i] = initv
-    return v
+def integrate(data,initv=None,buffer=10):
+    b = buffer if isinstance(buffer,MeanBuffer) else MeanBuffer(buffer)
+    if initv is not None: b.put(initv)
+    for dv in data:
+        v = b.mean()+dv
+        yield v
+        b.put(v)

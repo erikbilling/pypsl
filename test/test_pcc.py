@@ -85,7 +85,7 @@ class TestLogDiffEncoder(unittest.TestCase):
             pcc.train(trace,dv)
 
         dvResult = [pcc.predict(trace) for trace,v,dv in pcc.trace(data)]
-        result = np.array(dvResult)+np.array(data)
+        result = np.array([v for v in integrate(dvResult)])
         mse = np.square(result[:-1]-np.array(data[1:])).mean()
         print('MSE: {0:.6f}'.format(mse))
         self.assertLess(mse,0.01)
@@ -93,17 +93,22 @@ class TestLogDiffEncoder(unittest.TestCase):
 class TestIntegrate(unittest.TestCase):
 
     def test_integration(self):
-        for a,b in zip(integrate([1,2,3],0),[1,3,6]):
+        for a,b in zip(integrate([1.,2.,3.]),[1.,3.,5.]):
             self.assertEqual(a,b)
 
 class TestMeanBuffer(unittest.TestCase):
 
     def test_mean(self):
-        b = MeanBuffer(5)
-        self.assertEqual(b.mean(),0)
+        b = MeanBuffer(10)
         for i in range(5):
             b.put(i)
         self.assertEqual(b.mean(),2.)
+
+    def test_mean_window(self):
+        b = MeanBuffer(4)
+        for i in range(6):
+            b.put(i)
+        self.assertEqual(b.mean(),3.5)
 
 if __name__ == '__main__':
     unittest.main()
