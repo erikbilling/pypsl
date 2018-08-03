@@ -32,7 +32,7 @@ class Pcc:
     def predict(self,val,decode=True):
         res = self.predictVector(self.encoder.encodeInput(val),self.encoder.encodeContext(val))
         res[res<0] = 0
-        return res.decode().ravel()[0] if decode else res
+        return self.encoder.decode(res) if decode else res
 
     def predictVector(self,v,context=None):
         res = self.encoder.newChannelVector()
@@ -43,23 +43,46 @@ class Pcc:
 
     def trace(self,data,retention=0.5):
         t = InputTrace(self.encoder,retention)
-        for v in data:
-            yield (t,v)
-            t.addSample(v)
+        if isinstance(self.encoder,AbstractDiffEncoder):
+            lv = 0
+            for v in data:
+                yield (t,v-lv)
+                t.addSample(v-lv)
+                lv = v
+        else:
+            for v in data:
+                yield (t,v)
+                t.addSample(v)
 
     def gen(self,data,length=None,retention=0.8,includeSourceData=False):
         if length is None: length=len(data)
         t = InputTrace(self.encoder,retention)
 
-        for v in data:
-            if includeSourceData: yield t,v
-            t.addSample(v)
-            if t.length >= length and includeSourceData: break
+        if isinstance(self.encoder,AbstractDiffEncoder):
+            lv = 0.
+            for v in data:
+                if includeSourceData: yield t,v-lv
+                t.addSample(v-lv)
+                lv = float(v)
+                if t.length >= length and includeSourceData: 
+                    break
+                
 
-        while t.length < length + (len(data) if not includeSourceData else 0):
-            p = self.predict(t)
-            yield t,p
-            t.addSample(p)
+            while t.length < length + (len(data) if not includeSourceData else 0):
+                dv = self.predict(t)
+                lv += dv
+                yield t,dv
+                t.addSample(dv)
+        else:
+            for v in data:
+                if includeSourceData: yield t,v
+                t.addSample(v)
+                if t.length >= length and includeSourceData: break
+
+            while t.length < length + (len(data) if not includeSourceData else 0):
+                p = self.predict(t)
+                yield t,p
+                t.addSample(p)
 
 class InputTrace(object):
     def __init__(self,encoder,retention=0.8,val=None,decodePrediction=True):
@@ -73,7 +96,7 @@ class InputTrace(object):
         self.addSample(val)
 
     def addSample(self,val):
-        if isinstance(val,Collection): 
+        if isinstance(val,(list,tuple)): 
             for v in val: self.addSample(v)
         elif val is not None:
             self.__trace__ *= self.retention
@@ -89,6 +112,21 @@ class AbstractChannelEncoder(ABC):
 
     def __init__(self,channelBasis):
         self.__basis__ = channelBasis
+
+    def reset(self):
+        pass
+
+    @property
+    def minValue(self):
+        return self.__basis__.getMinV()
+
+    @property
+    def maxValue(self):
+        return self.__basis__.getMaxV()
+
+    @property
+    def channelCount(self):
+        return self.__basis__.getNrChannels()
 
     @abstractmethod
     def encode(self,s):
@@ -109,6 +147,9 @@ class AbstractChannelEncoder(ABC):
     def newChannelVector(self):
         return ChannelVector(self.__basis__)
 
+class AbstractDiffEncoder(AbstractChannelEncoder):
+    pass
+
 class UniformChannelEncoder(AbstractChannelEncoder):
     def __init__(self, nChannels=11, minValue=0., maxValue=1., channelBasis=None, noise=None):
         super().__init__(channelBasis or Cos2ChannelBasis())
@@ -116,28 +157,11 @@ class UniformChannelEncoder(AbstractChannelEncoder):
             self.__basis__.setParameters(nChannels, minValue, maxValue)
         self.noise = noise
 
-    @property
-    def minValue(self):
-        return self.__basis__.getMinV()
-
-    @property
-    def maxValue(self):
-        return self.__basis__.getMaxV()
-
-    @property
-    def channelCount(self):
-        return self.__basis__.getNrChannels()
-
     def encode(self,s):
         if s is None:
             return ChannelVector(self.__basis__)
         elif isinstance(s,ChannelVector):
             return s
-        elif isinstance(s,Collection):
-            e = ChannelVector(self.__basis__)
-            for i,v in enumerate(s): 
-                e += self.encode(v) / (len(s)-i)
-            return e
         else:
             if callable(self.noise):
                 s += self.noise()
@@ -154,10 +178,65 @@ class UniformChannelEncoder(AbstractChannelEncoder):
     def encodeInput(self,i):
         if isinstance(i,InputTrace):
             return i.__last__
-        elif isinstance(i,Collection):
-            return self.encode(i[-1])
         else:
             return self.encode(i)
 
     def encodeContext(self,i):
         return i.__trace__ if isinstance(i,InputTrace) else None
+
+
+class LogDiffEncoder(AbstractDiffEncoder):
+    def __init__(self, nChannels=11, maxDiff=1., noise=None):
+        super().__init__(Cos2ChannelBasis())
+        self.__trueMax__ = maxDiff 
+        self.__trueMin__ = -maxDiff
+        self.__basis__.setParameters(nChannels, self.reshape(-maxDiff), self.reshape(maxDiff))
+        self.noise = noise
+
+    @property
+    def minValue(self):
+        return self.__trueMin__
+
+    @property
+    def maxValue(self):
+        return self.__trueMax__
+
+    def reshape(self,value):
+        return np.log(1. + np.abs(value)) * np.sign(value)
+
+    def restore(self,value):
+        return (np.exp(np.abs(value)) - 1.) * np.sign(value)
+
+    def encode(self,s):
+        if s is None:
+            return self.newChannelVector()
+        elif isinstance(s,ChannelVector):
+            return s
+        else:
+            if callable(self.noise):
+                s += self.noise()
+            elif self.noise:
+                s += np.random.randn()*self.noise-self.noise/2.
+            cv = self.__basis__.encode(self.reshape(s))
+            return cv
+
+    def decode(self,v):
+        cv = ChannelVector(self.__basis__)
+        cv[:] = v
+        return self.restore(cv.decode().ravel()[0])
+
+    def encodeInput(self,i):
+        if isinstance(i,InputTrace):
+            return i.__last__
+        else:
+            return self.encode(i)
+
+    def encodeContext(self,i):
+        return i.__trace__ if isinstance(i,InputTrace) else None
+
+def integrate(data,initv=0):
+    v = np.empty(len(data))
+    for i,d in enumerate(data): 
+        initv = initv + d
+        v[i] = initv
+    return v

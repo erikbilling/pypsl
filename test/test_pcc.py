@@ -2,7 +2,7 @@
 import numpy as np
 import unittest
 from test.inputdata import singen, trigen
-from pcc import Pcc, UniformChannelEncoder
+from pcc import Pcc, UniformChannelEncoder, LogDiffEncoder, integrate
 
 class TestPcc(unittest.TestCase):
 
@@ -65,6 +65,35 @@ class TestUniformEncoder(unittest.TestCase):
         p = encoder.encode([0])
         self.assertEqual((p-encoder.encode(0)).sum(),0)
 
+class TestLogDiffEncoder(unittest.TestCase):
+
+    def test_reshape(self):
+        encoder = LogDiffEncoder(11,2)
+        for v in np.arange(-1,1,0.1):
+            self.assertAlmostEqual(v,encoder.restore(encoder.reshape(v)))
+
+    def test_encode(self):
+        encoder = LogDiffEncoder(11,2)
+        for v in np.arange(-1,1,0.1):
+            self.assertAlmostEqual(v,encoder.decode(encoder.encode(v)))
+
+    def test_diff_learning(self):
+        pcc = Pcc(LogDiffEncoder(25,2))
+        N = 1000
+        data = [v for v in singen(length=N)]
+        for trace,v in pcc.trace(data):
+            pcc.train(trace,v)
+
+        dvResult = [pcc.predict(trace) for trace,v in pcc.trace(data)]
+        result = np.array(dvResult)+np.array(data)
+        mse = np.square(result[:-1]-np.array(data[1:])).mean()
+        print('MSE: {0:.6f}'.format(mse))
+        self.assertLess(mse,0.01)
+
+class TestIntegrate(unittest.TestCase):
+
+    def test_integration(self):
+        self.assertEqual(integrate([1,2,3],0),[1,3,6])
 
 if __name__ == '__main__':
     unittest.main()
