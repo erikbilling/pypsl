@@ -233,6 +233,23 @@ class LogDiffEncoder(AbstractDiffEncoder):
     def encodeContext(self,i):
         return i.__trace__ if isinstance(i,InputTrace) else None
 
+class MeanBuffer:
+    def __init__(self,size):
+        self.buffer = np.zeros(size)
+        self.i = -1
+
+    @property
+    def size(self):
+        return self.buffer.size
+
+    def mean(self):
+        return self.buffer.mean()
+
+    def put(self,v):
+        self.i = (self.i+1)%self.buffer.size
+        self.buffer[self.i] = v
+
+
 def integrate(data,initv=0):
     v = np.empty(len(data))
     for i,d in enumerate(data): 

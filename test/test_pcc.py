@@ -2,7 +2,7 @@
 import numpy as np
 import unittest
 from test.inputdata import singen, trigen
-from pcc import Pcc, UniformChannelEncoder, LogDiffEncoder, integrate
+from pcc import Pcc, UniformChannelEncoder, LogDiffEncoder, MeanBuffer, integrate
 
 class TestPcc(unittest.TestCase):
 
@@ -68,23 +68,23 @@ class TestUniformEncoder(unittest.TestCase):
 class TestLogDiffEncoder(unittest.TestCase):
 
     def test_reshape(self):
-        encoder = LogDiffEncoder(11,2)
+        encoder = LogDiffEncoder(20,-1,1)
         for v in np.arange(-1,1,0.1):
             self.assertAlmostEqual(v,encoder.restore(encoder.reshape(v)))
 
     def test_encode(self):
-        encoder = LogDiffEncoder(11,2)
+        encoder = LogDiffEncoder(11,-1,1)
         for v in np.arange(-1,1,0.1):
             self.assertAlmostEqual(v,encoder.decode(encoder.encode(v)))
 
     def test_diff_learning(self):
-        pcc = Pcc(LogDiffEncoder(25,2))
+        pcc = Pcc(LogDiffEncoder(25,-1,1))
         N = 1000
         data = [v for v in singen(length=N)]
-        for trace,v in pcc.trace(data):
-            pcc.train(trace,v)
+        for trace,v,dv in pcc.trace(data):
+            pcc.train(trace,dv)
 
-        dvResult = [pcc.predict(trace) for trace,v in pcc.trace(data)]
+        dvResult = [pcc.predict(trace) for trace,v,dv in pcc.trace(data)]
         result = np.array(dvResult)+np.array(data)
         mse = np.square(result[:-1]-np.array(data[1:])).mean()
         print('MSE: {0:.6f}'.format(mse))
@@ -93,7 +93,17 @@ class TestLogDiffEncoder(unittest.TestCase):
 class TestIntegrate(unittest.TestCase):
 
     def test_integration(self):
-        self.assertEqual(integrate([1,2,3],0),[1,3,6])
+        for a,b in zip(integrate([1,2,3],0),[1,3,6]):
+            self.assertEqual(a,b)
+
+class TestMeanBuffer(unittest.TestCase):
+
+    def test_mean(self):
+        b = MeanBuffer(5)
+        self.assertEqual(b.mean(),0)
+        for i in range(5):
+            b.put(i)
+        self.assertEqual(b.mean(),2.)
 
 if __name__ == '__main__':
     unittest.main()
