@@ -46,7 +46,7 @@ class Pcc:
         if isinstance(self.encoder,AbstractDiffEncoder):
             lv = 0
             for v in data:
-                yield (t,v-lv)
+                yield (t,v,v-lv)
                 t.addSample(v-lv)
                 lv = v
         else:
@@ -59,19 +59,18 @@ class Pcc:
         t = InputTrace(self.encoder,retention)
 
         if isinstance(self.encoder,AbstractDiffEncoder):
-            lv = 0.
+            lv = np.array([0.])
             for v in data:
-                if includeSourceData: yield t,v-lv
+                if includeSourceData: yield t,v,v-lv
                 t.addSample(v-lv)
-                lv = float(v)
+                lv[:] = v
                 if t.length >= length and includeSourceData: 
                     break
                 
-
             while t.length < length + (len(data) if not includeSourceData else 0):
                 dv = self.predict(t)
                 lv += dv
-                yield t,dv
+                yield t,lv,dv
                 t.addSample(dv)
         else:
             for v in data:
@@ -186,11 +185,11 @@ class UniformChannelEncoder(AbstractChannelEncoder):
 
 
 class LogDiffEncoder(AbstractDiffEncoder):
-    def __init__(self, nChannels=11, maxDiff=1., noise=None):
+    def __init__(self, nChannels=11, minValue=-1, maxValue=1., noise=None):
         super().__init__(Cos2ChannelBasis())
-        self.__trueMax__ = maxDiff 
-        self.__trueMin__ = -maxDiff
-        self.__basis__.setParameters(nChannels, self.reshape(-maxDiff), self.reshape(maxDiff))
+        self.__trueMax__ = (maxValue-minValue)
+        self.__trueMin__ = -self.__trueMax__
+        self.__basis__.setParameters(nChannels, self.reshape(self.__trueMin__), self.reshape(self.__trueMax__))
         self.noise = noise
 
     @property
