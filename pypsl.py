@@ -5,6 +5,7 @@ This is a Python 3 implementation of Predictive Sequence Learning (PSL)
 from abc import ABC, abstractmethod
 
 class Psl:
+    """Psl is the main class for the Predictive Sequence Learning (PSL) implementation. It provides methods for sequence learning and prediction."""
 
     def __init__(self,library=None,selector=None):
         self.library = library if library is not None else Library(selector = selector if selector is not None else DefaultSelector())
@@ -53,6 +54,7 @@ class AbstractSelector:
         pass
 
 class DefaultSelector(AbstractSelector):
+    """The detault selector selects the hypothesis with the highest confidence"""
 
     def select(self,hypotheses,default=None):
         maxConf = -1
@@ -64,6 +66,7 @@ class DefaultSelector(AbstractSelector):
         return bestHypothesis
 
 class LengthSelector(AbstractSelector):
+    """Selects the longest hypothesis"""
 
     def select(self, hypotheses, default = None):
         maxLen = -1
@@ -75,6 +78,8 @@ class LengthSelector(AbstractSelector):
         return bestHypothesis
 
 class Library:
+    """Container class for all hypotheses."""
+
     def __init__(self,items=None,selector=DefaultSelector()):
         self.__lib__ = dict()
         self.selector = selector
@@ -124,7 +129,7 @@ class Library:
             
 
 class Hypothesis:
-    """Represents an hypothesis (a,b,c => d), with specified target and confidence"""
+    """Represents an hypothesis (a,b,c => d), with acosiated confidence"""
 
     def __init__(self,lhs,rhs,hits=1,misses=0):
         self.lhs = lhs
