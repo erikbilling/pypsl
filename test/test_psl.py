@@ -37,3 +37,11 @@ class TestPsl(unittest.TestCase):
         lib.add('D','X',hits=2)
         psl = Psl(lib)
         self.assertEquals(psl.predict('D'),'X')
+        self.assertEquals(psl.predict('CD'),'E')
+
+    def test_train(self):
+        s = 'abccabccabccabcc'
+        psl = Psl()
+        psl.train('abccabccabccabcc')
+        print('Sequence "{}" yields library:'.format(s),psl.library)
+        self.assertEquals(len(psl.library), 6)

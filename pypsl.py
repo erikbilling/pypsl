@@ -7,26 +7,40 @@ from abc import ABC, abstractmethod
 class Psl:
 
     def __init__(self,library=None,selector=None):
-        self.library = library if library is not None else Library(selector if selector is not None else DefaultSelector())
+        self.library = library if library is not None else Library(selector = selector if selector is not None else DefaultSelector())
 
     def predict(self,s):
         """Returns the next element in the specified sequence s"""
         h = self.select(s)
         return h.rhs if h else None
 
-    def train(self,s, startIndex=1, stopIndex=-1):
+    def train(self, s, startIndex=1, stopIndex=0):
         """Trains PSL on the sequence s, covering the range startIndex to stopIndex"""
-        pass
+        lenSelector = LengthSelector()
+        for i in range(startIndex,stopIndex or len(s)):
+            match = list(self.match(s[:i]))
+            target = s[i]
+            correct = filter(lambda h: h.rhs == target, match)
+            #incorrect = filter(lambda h: h.rhs != s[i], match)
+            selected = self.library.selector.select(match)
+            predictionCorrect = selected and selected.rhs == target
+            if not predictionCorrect:
+                if selected: selected.punish()
+                selectedCorrect = lenSelector.select(correct)
+                if not selectedCorrect:
+                    self.library.add(s[i-1],target)
+                elif len(selectedCorrect) <= len(selected):
+                    self.library.add(s[i-1-len(selectedCorrect):i],target)
+            for h in correct: 
+                h.reward()
 
     def match(self,s):
         """Returns an iterator over all hypotheses matching specified sequence s"""
-        hlen = 1
-        while True:
+        for hlen in range(1,len(s)+1):
             hs = self.library.match(s[-hlen:])
             if not hs: break
             for h in hs:
                 yield h
-            hlen += 1
 
     def select(self,s,default=None):
         return self.library.selector.select(self.library.match(s),default)
@@ -43,9 +57,20 @@ class DefaultSelector(AbstractSelector):
     def select(self,hypotheses,default=None):
         maxConf = -1
         bestHypothesis = default
-        for h in hypotheses.values():
+        for h in hypotheses:
             if h.confidence > maxConf or (h.confidence == maxConf and h.hits > bestHypothesis.hits):
                 maxConf = h.confidence
+                bestHypothesis = h
+        return bestHypothesis
+
+class LengthSelector(AbstractSelector):
+
+    def select(self, hypotheses, default = None):
+        maxLen = -1
+        bestHypothesis = default
+        for h in hypotheses:
+            if len(h) > maxLen:
+                maxLen = len(h)
                 bestHypothesis = h
         return bestHypothesis
 
@@ -63,8 +88,14 @@ class Library:
             count+=len(s)
         return count
 
+    def __iter__(self):
+        """Iterates over all hypotheses in library"""
+        for s in self.__lib__.values():
+            for h in s.values(): 
+                yield h
+
     def __repr__(self):
-        return repr(self.__lib__)
+        return repr(list(iter(self)))
 
     def __getitem__(self,key):
         h = self.selector.select(self.match(key))
@@ -76,8 +107,8 @@ class Library:
         h = self.selector.select(self.match(key),default)
         return h.rhs if isinstance(h,Hypothesis) else h
 
-    def match(self,key,default=()):
-        return self.__lib__.get(key,default)
+    def match(self,key,default={}):
+        return self.__lib__.get(key,default).values()
 
     def add(self,key,value,hits=1,misses=0):
         s = self.__lib__.get(key)
@@ -104,6 +135,9 @@ class Hypothesis:
 
     def __hash__(self):
         return self.__hashCode__
+
+    def __len__(self):
+        return len(self.lhs)
 
     def __repr__(self):
         return '{0}=>{1}({2}/{3})'.format(repr(self.lhs),repr(self.rhs),self.hits,self.misses)
