@@ -42,6 +42,11 @@ class TestPsl(unittest.TestCase):
     def test_train(self):
         s = 'abccabccabccabcc'
         psl = Psl()
-        psl.train('abccabccabccabcc')
+        psl.train(s)
         print('Sequence "{}" yields library:'.format(s),psl.library)
         self.assertEquals(len(psl.library), 6)
+
+        for i in range(100): 
+            c = psl.predict(s)
+            print(i,'Predicted:',c)
+            s += c

@@ -44,7 +44,7 @@ class Psl:
                 yield h
 
     def select(self,s,default=None):
-        return self.library.selector.select(self.library.match(s),default)
+        return self.library.selector.select(self.match(s),default)
 
 class AbstractSelector:
     """Selects the best hypotheses from a set of matching hypotheses"""

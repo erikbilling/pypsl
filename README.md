@@ -4,11 +4,17 @@ pypsl
 A Python implementation of Predictive Sequence Learning. 
 
 Predictive Sequence Learning (**PSL**) is a machine learning algorithm for robot learning from demonstration and internal simulation of sensory-motor interactions. 
+See Billing et. al (2011) for a detailed algorithm description and demonstration. PSL has since then been extended in several ways, e.g. as demonstrated by Billing et al. (2012, 2016). 
+A more comprehensive implementation of PSL in Java is available at https://bitbucket.org/interactionlab/psl, and a simple tutorial-implementation in Javascript is found at https://github.com/billingo/psl.js. 
+You may also refer to http://cognitionreversed.com for examples and references. 
 
-**NOTE:** This library currently only comprise an implementation of Predictive Channel Coding (**PCC**). While it has strong similarities to PSL it is a different algorithm. This may change in the future. 
+**pypsl** currently comprise a basic, descrete, version of the *PSL* algorithm (Billing et al. 2011). In addition, the package also comprise a more experimental implementation of Predictive Channel Coding (PCC). 
 
 Dependencies
 ------------
+
+**pypsl** is implemented for Python 3.X.
+PSL has no additional dependencies. 
 
 PCC depends on the following libraries: 
 * Numpy
@@ -22,9 +28,24 @@ After installing dependencies, simply clone or download this package and place o
 Usage
 -----
 
-**PCC** is intended for sequence prediction or reconstruction of continuous data and can be seen as a type of regression technique. Given a sequence of values, we want to predict the most probable next value of the sequence.
+Both **PSL** and **PCC** is intended for sequence prediction or reconstruction of continuous data and can be seen as a type of regression technique. Given a sequence of values, we want to predict the most probable next value of the sequence.
 
-Let's start with a very basic example where *PCC* is used to predict a sinus curve:
+Let's start with a very basic example where *PSL* is used to predict a character sequence: 
+
+~~~~python
+from pypsl import Psl
+
+s = 'abccabccabccabcc'
+psl = Psl()
+psl.train(s)
+for i in range(100): 
+    c = psl.predict(s)
+    print(i,'Predicted:',c)
+    s += c
+print('Generated sequence: ',s)
+~~~~
+
+Let's continue with an example where *PCC* is used to predict a sinus curve:
 
 ~~~~python
 import numpy as np
@@ -86,3 +107,17 @@ print('MSE full sequence: {0:.6f}'.format(mse))
 ~~~~
 
 This should reproduce an mse close to 0.0. 
+
+References
+----------
+
+Please refer to http://cognitionreversed.com for more examples and references. 
+
+E. A. Billing. *Cognition Rehearsed: Recognition and Reproduction of Demonstrated Behaviour*. PhD thesis, Ume ̊a University, Sweden, 2012.
+
+E. A. Billing, T. Hellström, and L.-E. Janlert. Predictive learning from demonstration. In J. Filipe, A. Fred, and B. Sharp, editors, *Proc. Second International Conference on Agents and Artificial Intelligence ICAART 2010*, volume CCIS 129, pages 186–200, Berlin Heidelberg, 2011. Springer-Verlag.
+
+E. A. Billing, T. Hellstroö̈m, and L.-E. Janlert. Robot learning from demonstration using predictive sequence learning. In A. Dutta, editor, *Robotic Systems – Applications, Control and Programming*, pages 235–250. Intech, 2012.
+
+E. A. Billing, H. Svensson, R. Lowe, and T. Ziemke. Finding your way from the bed to the kitchen: reenacting and recombining sensorimotor episodes learned from human demonstration. *Frontiers in Robotics and AI*, 3(9), 2016.
+ 
