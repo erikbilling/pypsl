@@ -46,7 +46,23 @@ class TestPsl(unittest.TestCase):
         print('Sequence "{}" yields library:'.format(s),psl.library)
         self.assertEquals(len(psl.library), 6)
 
-        for i in range(100): 
-            c = psl.predict(s)
-            print(i,'Predicted:',c)
-            s += c
+        # for i in range(100): 
+        #     c = psl.predict(s)
+        #     print(i,'Predicted:',c)
+        #     s += c
+
+    def test_number_prediction(self):
+        x = list(trigen(length=30,amplitude=3))
+        psl = Psl()
+        psl.train(x)
+        self.assertEquals(psl.predict([0,1,2]),3)
+        self.assertEquals(psl.predict([1,0]),-1)
+        # print (psl.library)
+
+        # y = x[:2]
+        # while len(y) < len(x): 
+        #     v = psl.predict(y)
+        #     print('Predicted:',v)
+        #     y.append(v)
+        # print('Training sequence: ',x)
+        # print('Generated sequence:',y)

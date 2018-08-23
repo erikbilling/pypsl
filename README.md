@@ -48,6 +48,25 @@ print('Generated sequence: ',s)
 
 *Psl* will learn the pattern and extend the sequence up to the specified length. 
 
+*Psl* can also be used to learn and predict sequences of integer values or other discrete data:
+
+~~~~python
+from pypsl import Psl
+from test.inputdata import trigen
+
+x = list(trigen(length=30,amplitude=3))
+psl = Psl()
+psl.train(x)
+
+y = x[:2]
+while len(y) < len(x): 
+    v = psl.predict(y)
+    print('Predicted:',v)
+    y.append(v)
+print('Training sequence:',x)
+print('Generated sequence:',y)
+~~~~
+
 Let's continue with an example where *PCC* is used to predict a sinus curve:
 
 ~~~~python

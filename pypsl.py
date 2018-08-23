@@ -3,6 +3,7 @@ This is a Python 3 implementation of Predictive Sequence Learning (PSL)
 """
 
 from abc import ABC, abstractmethod
+from collections import Hashable, Collection
 
 class Psl:
     """Psl is the main class for the Predictive Sequence Learning (PSL) implementation. It provides methods for sequence learning and prediction."""
@@ -113,9 +114,11 @@ class Library:
         return h.rhs if isinstance(h,Hypothesis) else h
 
     def match(self,key,default={}):
+        key = self.__make_key__(key)
         return self.__lib__.get(key,default).values()
 
     def add(self,key,value,hits=1,misses=0):
+        key = self.__make_key__(key)
         s = self.__lib__.get(key)
         if s:
             h = s.get(value)
@@ -126,6 +129,13 @@ class Library:
                 s[value] = Hypothesis(key,value,hits,misses)
         else:
             self.__lib__[key] = {value: Hypothesis(key,value,hits,misses)}
+
+    def __make_key__(self,key):
+        if isinstance(key,list): 
+            key = tuple(key) # Makes the sequence hashable
+        elif not isinstance(key,Collection):
+            key = (key,) # Wraps single values in tuple
+        return key
             
 
 class Hypothesis:
@@ -140,6 +150,9 @@ class Hypothesis:
 
     def __hash__(self):
         return self.__hashCode__
+
+    def __bool__(self):
+        return True
 
     def __len__(self):
         return len(self.lhs)
