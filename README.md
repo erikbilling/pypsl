@@ -14,6 +14,7 @@ Dependencies
 ------------
 
 **pypsl** is implemented for Python 3.X.
+
 PSL has no additional dependencies. 
 
 PCC depends on the following libraries: 
@@ -44,6 +45,8 @@ for i in range(100):
     s += c
 print('Generated sequence: ',s)
 ~~~~
+
+*Psl* will learn the pattern and extend the sequence up to the specified length. 
 
 Let's continue with an example where *PCC* is used to predict a sinus curve:
 
