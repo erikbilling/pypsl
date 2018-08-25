@@ -35,19 +35,6 @@ class ChanPsl(Psl):
             for h in correct: 
                 h.reward()
 
-    def __combine__(self,vlist,listindex=0,combo=None):
-        """Given a list of integer arrays vlist, returns an iterator over all combinations of values, one from each array."""
-        if combo is None: combo = np.empty(len(vlist), dtype=int)
-        if listindex < len(vlist) -1:
-            for v in vlist[listindex]:
-                combo[listindex]=v
-                for cmb in self.__combine__(vlist,listindex+1,combo):
-                    yield tuple(cmb)
-        else:
-            for v in vlist[listindex]:
-                combo[listindex]=v
-                yield tuple(combo)
-
     def match(self,s):
         """Returns an iterator over all hypotheses matching specified sequence s"""
         nonzeros = []
@@ -57,9 +44,24 @@ class ChanPsl(Psl):
                 v = self.__basis__.encode(v)
             nonzeros.insert(0,np.flatnonzero(v))
             matchingHypotheses = 0
-            for combo in self.__combine__(nonzeros):
+            for combo in combine(nonzeros):
                 hs = self.library.match(combo)
                 for h in hs:
                     matchingHypotheses += 1
                     yield h
             if not matchingHypotheses: break
+
+# Delper functions
+
+def combine(vlist,listindex=0,combo=None):
+        """Given a list of integer arrays vlist, returns an iterator over all combinations of values, one from each array."""
+        if combo is None: combo = np.empty(len(vlist), dtype=int)
+        if listindex < len(vlist) -1:
+            for v in vlist[listindex]:
+                combo[listindex]=v
+                for cmb in combine(vlist,listindex+1,combo):
+                    yield tuple(cmb)
+        else:
+            for v in vlist[listindex]:
+                combo[listindex]=v
+                yield tuple(combo)
