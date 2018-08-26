@@ -19,23 +19,16 @@ class ChanPsl(Psl):
             if not channelBasis:
                 self.__basis__.setParameters(nChannels, minValue, maxValue)
 
-    def __sum__(self,hypotheses):
-        cv = ChannelVector(self.__basis__)
-        cvflat = cv.ravel()
-        for h in hypotheses:
-            cvflat[h.rhs] += h.confidence
-        return cv
-
-    def add(self,lhs,rhs,baseLhs=(),target=None):
-        if target is None:
-            rhs = rhs.ravel()
+    def add(self,lhs,rhs,baseLhs=()):
+        lhs = lhs.ravel()
+        rhs = rhs.ravel()
+        for li in np.flatnonzero(lhs):
+            lhsKey = (li,) + baseLhs
             for ri in np.flatnonzero(rhs):
-                self.add(lhs,rhs[ri],baseLhs,ri)
-        else:
-            lhs = lhs.ravel()
-            for li in np.flatnonzero(lhs):
-                lhsKey = (li,) + baseLhs
-                self.library.add(lhsKey,target,lhs[li],miss(lhs[li],rhs))
+                self.addOne(lhsKey,lhs[li],ri,rhs[ri])
+
+    def addOne(self,lhsIndex,lhsValue,rhsIndex,rhsValue):
+        self.library.add(lhsIndex,rhsIndex,lhsValue,miss(lhsValue,rhsValue))
 
     def train(self, s, startIndex=1, stopIndex=0):
         """Trains PSL on the sequence s, covering the range startIndex to stopIndex"""
@@ -45,7 +38,7 @@ class ChanPsl(Psl):
             target = s[i]
             match = list(self.match(s[:i]))
             if match:
-                prediction = self.__sum__(match)
+                prediction = self.predict(match,decode=False)
                 error = target-prediction
                 correct = [h for h in match if target[h.rhs] <= h.confidence]
                 for i in np.flatnonzero(error):
@@ -86,11 +79,13 @@ class ChanPsl(Psl):
                     yield h
             if not matchingHypotheses: break
 
-    def predict(self,s):
+    def predict(self,s,decode=True):
         hypotheses = self.match(s)
-        prediction = self.__sum__(hypotheses)
-        print(prediction)
-        return prediction.decode().ravel()[0]
+        cv = ChannelVector(self.__basis__)
+        cvflat = cv.ravel()
+        for h in hypotheses:
+            cvflat[h.rhs] += h.confidence
+        return cv.decode().ravel()[0] if decode else cv
 
     def encode(self,v):
         if isinstance(v,(list,tuple)):
