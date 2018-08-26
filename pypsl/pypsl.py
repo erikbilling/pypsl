@@ -158,7 +158,7 @@ class Hypothesis:
         return len(self.lhs)
 
     def __repr__(self):
-        return '{0}=>{1}({2}/{3})'.format(repr(self.lhs),repr(self.rhs),self.hits,self.misses)
+        return '{0}=>{1}({2:.2f}/{3:.2f})'.format(repr(self.lhs),repr(self.rhs),self.hits,self.misses)
 
     def reward(self,hits=1):
         self.hits+=hits

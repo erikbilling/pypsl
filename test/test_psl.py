@@ -1,5 +1,4 @@
 
-import numpy as np
 import unittest
 from test.inputdata import singen, trigen
 from pypsl import Psl, Library
