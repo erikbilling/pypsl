@@ -33,8 +33,26 @@ class TestPsl(unittest.TestCase):
     def test_match(self):
         library = Library({(1,): 1, (1,2): 2, (3,): 3})
         psl = ChanPsl(minValue=0, maxValue=10, library=library)
-        match = psl.match([1,2,3])
+        match = psl.match(psl.encode([1,2,3]))
         self.assertEqual(next(match).rhs,3)
         self.assertEqual(next(match).rhs,2)
-        for h in match: 
-            print(h)
+
+    def test_add(self):
+        psl = ChanPsl(minValue=0, maxValue=10)
+        rhs = psl.__basis__.encode(2)
+        lhs = psl.__basis__.encode(3)
+        psl.add(rhs,lhs)
+        print(psl.library)
+
+    def test_predict(self):
+        psl = ChanPsl(minValue=0, maxValue=10)
+        rhs = psl.encode(2.)
+        lhs = psl.encode(3.)
+        psl.add(rhs,lhs)
+        self.assertAlmostEqual(psl.predict(rhs),3.)
+        
+        rhs = psl.encode(5.)
+        lhs = psl.encode(7.)
+        psl.add(rhs,lhs)
+        self.assertEquals(psl.predict(rhs),7.)
+        

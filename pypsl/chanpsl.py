@@ -3,8 +3,13 @@ This is an extension of pypsl that uses channel representations.
 """
 
 import numpy as np
-from pypsl import Psl, Library, Hypothesis, LengthSelector
+from pypsl import Psl, Library, Hypothesis, LengthSelector, AbstractSelector
 from chanpy import Cos2ChannelBasis, ChannelVector
+
+# class ChanSelector(AbstractSelector):
+
+#     def select(self, hypotheses, default=None):
+        
 
 class ChanPsl(Psl):
 
@@ -14,13 +19,45 @@ class ChanPsl(Psl):
             if not channelBasis:
                 self.__basis__.setParameters(nChannels, minValue, maxValue)
 
+    def __sum__(self,hypotheses):
+        cv = ChannelVector(self.__basis__)
+        cvflat = cv.ravel()
+        for h in hypotheses:
+            cvflat[h.rhs] += h.confidence
+        return cv
+
+    def add(self,lhs,rhs,baseLhs=(),target=None):
+        if target is None:
+            rhs = rhs.ravel()
+            for ri in np.flatnonzero(rhs):
+                self.add(lhs,rhs[ri],baseLhs,ri)
+        else:
+            lhs = lhs.ravel()
+            for li in np.flatnonzero(lhs):
+                lhsKey = (li,) + baseLhs
+                self.library.add(lhsKey,target,lhs[li],miss(lhs[li],rhs))
+
     def train(self, s, startIndex=1, stopIndex=0):
         """Trains PSL on the sequence s, covering the range startIndex to stopIndex"""
         lenSelector = LengthSelector()
         s = [self.__basis__.encode(v) for v in s] # Encodes all values to channel vecotrs
         for i in range(startIndex,stopIndex or len(s)):
-            match = list(self.match(s[:i]))
             target = s[i]
+            match = list(self.match(s[:i]))
+            if match:
+                prediction = self.__sum__(match)
+                error = target-prediction
+                correct = [h for h in match if target[h.rhs] <= h.confidence]
+                for i in np.flatnonzero(error):
+                    hi = [h for h in match if h.rhs == i]
+                    longest = 0
+                    for h in hi:
+                        h.reward()
+                        h.punish(miss(1.,target[i]))
+                        longest = len(h) if len(h) > longest else longest
+
+
+            
             correct = filter(lambda h: h.rhs == target, match)
             #incorrect = filter(lambda h: h.rhs != s[i], match)
             selected = self.library.selector.select(match)
@@ -40,8 +77,6 @@ class ChanPsl(Psl):
         nonzeros = []
         for hlen in range(1,len(s)+1):
             v = s[-hlen]
-            if not isinstance(v,ChannelVector): 
-                v = self.__basis__.encode(v)
             nonzeros.insert(0,np.flatnonzero(v))
             matchingHypotheses = 0
             for combo in combine(nonzeros):
@@ -51,7 +86,19 @@ class ChanPsl(Psl):
                     yield h
             if not matchingHypotheses: break
 
-# Delper functions
+    def predict(self,s):
+        hypotheses = self.match(s)
+        prediction = self.__sum__(hypotheses)
+        print(prediction)
+        return prediction.decode().ravel()[0]
+
+    def encode(self,v):
+        if isinstance(v,(list,tuple)):
+            return [self.encode(x) for x in v]
+        else:
+            return self.__basis__.encode(v)
+
+# Helper functions
 
 def combine(vlist,listindex=0,combo=None):
         """Given a list of integer arrays vlist, returns an iterator over all combinations of values, one from each array."""
@@ -65,3 +112,6 @@ def combine(vlist,listindex=0,combo=None):
             for v in vlist[listindex]:
                 combo[listindex]=v
                 yield tuple(combo)
+
+def miss(rhsStrength,lhsStrength):
+    return rhsStrength/lhsStrength-rhsStrength
