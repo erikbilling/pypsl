@@ -47,6 +47,51 @@ class Psl:
     def select(self,s,default=None):
         return self.library.selector.select(self.match(s),default)
 
+class AbstractHypothesis:
+
+    def __init__(self,lhs,rhs):
+        self.lhs = lhs
+        self.rhs = rhs
+        self.__hashCode__ = hash((lhs,rhs))
+
+    def __hash__(self):
+        return self.__hashCode__
+
+    def __bool__(self):
+        return True
+
+    def __len__(self):
+        return len(self.lhs)
+
+    def __repr__(self):
+        return '{0}=>{1}'.format(repr(self.lhs),repr(self.rhs))
+
+    @property
+    @abstractmethod
+    def confidence(self):
+        pass
+
+class Hypothesis(AbstractHypothesis):
+    """Represents an hypothesis (a,b,c => d), with acosiated confidence"""
+
+    def __init__(self,lhs,rhs,hits=1,misses=0):
+        super().__init__(lhs,rhs)
+        self.hits = hits
+        self.misses = misses
+
+    def __repr__(self):
+        return '{0}=>{1}({2:.2f}/{3:.2f})'.format(repr(self.lhs),repr(self.rhs),self.hits,self.misses)
+
+    def reward(self,hits=1):
+        self.hits+=hits
+
+    def punish(self,misses=1):
+        self.misses+=misses
+
+    @property
+    def confidence(self):
+        return len(self.lhs) * self.hits/(self.hits+self.misses)
+
 class AbstractSelector:
     """Selects the best hypotheses from a set of matching hypotheses"""
 
@@ -81,8 +126,10 @@ class LengthSelector(AbstractSelector):
 class Library:
     """Container class for all hypotheses."""
 
-    def __init__(self,items=None,selector=DefaultSelector()):
+    def __init__(self,items=None,selector=DefaultSelector(),hypothesisClass = Hypothesis):
         self.__lib__ = dict()
+        assert issubclass(hypothesisClass,Hypothesis)
+        self.__hypothesis_class__ = hypothesisClass
         self.selector = selector
         if items: 
             for key, value in (items.items() if isinstance(items,dict) else items):
@@ -126,9 +173,9 @@ class Library:
                 h.reward(hits)
                 h.punish(misses)
             else:
-                s[value] = Hypothesis(key,value,hits,misses)
+                s[value] = self.__hypothesis_class__(key,value,hits,misses)
         else:
-            self.__lib__[key] = {value: Hypothesis(key,value,hits,misses)}
+            self.__lib__[key] = {value: self.__hypothesis_class__(key,value,hits,misses)}
 
     def __make_key__(self,key):
         if isinstance(key,list): 
@@ -138,35 +185,4 @@ class Library:
         return key
             
 
-class Hypothesis:
-    """Represents an hypothesis (a,b,c => d), with acosiated confidence"""
-
-    def __init__(self,lhs,rhs,hits=1,misses=0):
-        self.lhs = lhs
-        self.rhs = rhs
-        self.hits = hits
-        self.misses = misses
-        self.__hashCode__ = hash((lhs,rhs))
-
-    def __hash__(self):
-        return self.__hashCode__
-
-    def __bool__(self):
-        return True
-
-    def __len__(self):
-        return len(self.lhs)
-
-    def __repr__(self):
-        return '{0}=>{1}({2:.2f}/{3:.2f})'.format(repr(self.lhs),repr(self.rhs),self.hits,self.misses)
-
-    def reward(self,hits=1):
-        self.hits+=hits
-
-    def punish(self,misses=1):
-        self.misses+=misses
-
-    @property
-    def confidence(self):
-        return len(self.lhs) * self.hits/(self.hits+self.misses)
 
