@@ -4,7 +4,7 @@ This is an extension of pypsl that uses channel representations.
 
 import numpy as np
 from functools import reduce
-from pypsl import Psl, Library, Hypothesis, LengthSelector, AbstractSelector
+from pypsl import Psl, Library, Hypothesis, DefaultSelector
 from chanpy import Cos2ChannelBasis, ChannelVector
 
 # class ChanSelector(AbstractSelector):
@@ -15,13 +15,24 @@ CREATION_THRESHOLD = 0.01
 
 class ChanHypothesis(Hypothesis):
 
+    def __init__(self,lhs,rhs,lhsValue,rhsValue):
+        super().__init__(lhs,rhs)
+        self.lhsValue = lhsValue
+        self.rhsValue = rhsValue
+
+    @property
     def confidence(self):
-        pass
+        return self.rhsValue/self.lhsValue
+
+class ChanLibrary(Library):
+
+    def __init__(self,items=None,selector=DefaultSelector(),hypothesisClass=ChanHypothesis):
+        super().__init__(items,selector,hypothesisClass)
 
 class ChanPsl(Psl):
 
     def __init__(self, nChannels=11, minValue=0., maxValue=1., channelBasis=None, library=None, selector=None):
-            super().__init__(library, selector)
+            super().__init__(library or ChanLibrary(), selector)
             self.__basis__ = channelBasis or Cos2ChannelBasis()
             if not channelBasis:
                 self.__basis__.setParameters(nChannels, minValue, maxValue)
@@ -32,11 +43,11 @@ class ChanPsl(Psl):
         for li in np.flatnonzero(lhs):
             lhsKey = (li,) + baseLhs
             for ri in np.flatnonzero(rhs):
-                self.addOne(lhsKey,lhs[li],ri,rhs[ri])
+                self.addOne(lhsKey,ri,lhs[li],rhs[ri])
 
-    def addOne(self,lhsIndex,lhsValue,rhsIndex,rhsValue):
+    def addOne(self,lhsIndex,rhsIndex,lhsValue,rhsValue):
         if not isinstance(lhsIndex,tuple): lhsIndex = (lhsIndex,)
-        self.library.add(lhsIndex,rhsIndex,lhsValue,miss(lhsValue,rhsValue))
+        self.library.add(lhsIndex,rhsIndex,1,rhsValue)
 
     def train(self, s, startIndex=1, stopIndex=0):
         """Trains PSL on the sequence s, covering the range startIndex to stopIndex"""
@@ -45,16 +56,16 @@ class ChanPsl(Psl):
             target = s[i].ravel()
             match = list(self.match(s[:i]))
 
-            prediction = self.predict(match=longest(match),decode=False)
+            prediction = self.predict(s[:i],match=longest(match),decode=False)
             error = (s[i]-prediction).ravel()
             #correct = [h for h in match if target[h.rhs] <= h.confidence]
             
             # Adjusting weights of existing hypotheses
             for h in match:
                 lhsValue = impact(h.lhs,s,i)
-                rhsValue = target[h.rhs]
-                h.reward(lhsValue)
-                h.punish(miss(lhsValue,rhsValue))
+                rhsValue = error[h.rhs]
+                h.lhsValue += 1.
+                h.rhsValue += rhsValue
 
             # Creating new hypotheses
             for rhsIndex in np.flatnonzero(error>=CREATION_THRESHOLD):
@@ -68,12 +79,12 @@ class ChanPsl(Psl):
                     for lhsIndex in np.flatnonzero(s[i-1-len(h)]):
                         lhs = (lhsIndex,) + h.lhs
                         lhsValue = impact(lhs,s,i)
-                        self.addOne(lhs,lhsValue,rhsIndex,target[rhsIndex])
+                        self.addOne(lhs,rhsIndex,lhsValue,target[rhsIndex])
 
                 # Adding new root hypotheses
                 for lhsIndex in np.flatnonzero(s[i-1]):
                     if lhsIndex in existingRoots: continue
-                    self.addOne(lhsIndex,s[i-1].ravel()[lhsIndex],rhsIndex,target[rhsIndex])
+                    self.addOne(lhsIndex,rhsIndex,s[i-1].ravel()[lhsIndex],target[rhsIndex])
 
 
     def match(self,s):
@@ -95,7 +106,7 @@ class ChanPsl(Psl):
         cv = ChannelVector(self.__basis__)
         cvflat = cv.ravel()
         for h in match:
-            cvflat[h.rhs] += h.confidence
+            cvflat[h.rhs] += h.confidence*impact(h.lhs,s)
         return cv.decode().ravel()[0] if decode else cv
 
     def encode(self,v):
@@ -119,7 +130,7 @@ def combine(vlist,listindex=0,combo=None):
                 combo[listindex]=v
                 yield tuple(combo)
 
-def impact(lhs,s,i):
+def impact(lhs,s,i=0):
     n = len(lhs)
     lhsValue = 1.
     for lhsp,lhsi in enumerate(lhs):
@@ -135,6 +146,3 @@ def longest(match):
             del lng[parent]
         lng[h.lhs + (h.rhs,)] = h
     return lng.values()
-
-def miss(lhsStrength,rhsStrength):
-    return lhsStrength/rhsStrength-lhsStrength

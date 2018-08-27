@@ -3,7 +3,7 @@ import numpy as np
 import unittest
 from test.inputdata import singen, trigen
 import chanpy
-from pypsl.chanpsl import ChanPsl, combine
+from pypsl.chanpsl import ChanPsl, combine, longest
 from pypsl import Library
 
 class TestPsl(unittest.TestCase):
@@ -49,10 +49,27 @@ class TestPsl(unittest.TestCase):
         rhs = psl.encode(2.)
         lhs = psl.encode(3.)
         psl.add(rhs,lhs)
+        print(psl.library)
         self.assertAlmostEqual(psl.predict(rhs),3.)
-        
+
         rhs = psl.encode(5.)
         lhs = psl.encode(7.)
         psl.add(rhs,lhs)
         self.assertEquals(psl.predict(rhs),7.)
         
+    def test_longest(self):
+        lib = Library({(1,):1,(2,1):1,(1,1):1,(2,):2})
+        lhs = [h.lhs for h in longest(lib)]
+        print(lhs)
+        self.assertFalse((1,) in lhs)
+        self.assertTrue((1,1) in lhs)
+
+    def test_train(self):
+        psl = ChanPsl(10,minValue=0,maxValue=10)
+        s = [1,2,3,4]
+        cs = psl.encode(s)
+        psl.train(cs)
+        print(psl.library)
+        print(longest(psl.match(cs[:1])))
+        print(psl.predict(cs[:1],decode=False))
+        self.assertEqual(psl.predict(cs[:4]),4)
