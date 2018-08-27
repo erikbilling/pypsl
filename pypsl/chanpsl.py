@@ -3,6 +3,7 @@ This is an extension of pypsl that uses channel representations.
 """
 
 import numpy as np
+from functools import reduce
 from pypsl import Psl, Library, Hypothesis, LengthSelector, AbstractSelector
 from chanpy import Cos2ChannelBasis, ChannelVector
 
@@ -10,6 +11,12 @@ from chanpy import Cos2ChannelBasis, ChannelVector
 
 #     def select(self, hypotheses, default=None):
         
+CREATION_THRESHOLD = 0.01
+
+class ChanHypothesis(Hypothesis):
+
+    def confidence(self):
+        pass
 
 class ChanPsl(Psl):
 
@@ -28,42 +35,46 @@ class ChanPsl(Psl):
                 self.addOne(lhsKey,lhs[li],ri,rhs[ri])
 
     def addOne(self,lhsIndex,lhsValue,rhsIndex,rhsValue):
+        if not isinstance(lhsIndex,tuple): lhsIndex = (lhsIndex,)
         self.library.add(lhsIndex,rhsIndex,lhsValue,miss(lhsValue,rhsValue))
 
     def train(self, s, startIndex=1, stopIndex=0):
         """Trains PSL on the sequence s, covering the range startIndex to stopIndex"""
-        lenSelector = LengthSelector()
-        s = [self.__basis__.encode(v) for v in s] # Encodes all values to channel vecotrs
+        
         for i in range(startIndex,stopIndex or len(s)):
-            target = s[i]
+            target = s[i].ravel()
             match = list(self.match(s[:i]))
-            if match:
-                prediction = self.predict(match,decode=False)
-                error = target-prediction
-                correct = [h for h in match if target[h.rhs] <= h.confidence]
-                for i in np.flatnonzero(error):
-                    hi = [h for h in match if h.rhs == i]
-                    longest = 0
-                    for h in hi:
-                        h.reward()
-                        h.punish(miss(1.,target[i]))
-                        longest = len(h) if len(h) > longest else longest
 
-
+            prediction = self.predict(match=longest(match),decode=False)
+            error = (s[i]-prediction).ravel()
+            #correct = [h for h in match if target[h.rhs] <= h.confidence]
             
-            correct = filter(lambda h: h.rhs == target, match)
-            #incorrect = filter(lambda h: h.rhs != s[i], match)
-            selected = self.library.selector.select(match)
-            predictionCorrect = selected and selected.rhs == target
-            if not predictionCorrect:
-                if selected: selected.punish()
-                selectedCorrect = lenSelector.select(correct)
-                if not selectedCorrect:
-                    self.library.add(s[i-1],target)
-                elif len(selectedCorrect) <= len(selected):
-                    self.library.add(s[i-1-len(selectedCorrect):i],target)
-            for h in correct: 
-                h.reward()
+            # Adjusting weights of existing hypotheses
+            for h in match:
+                lhsValue = impact(h.lhs,s,i)
+                rhsValue = target[h.rhs]
+                h.reward(lhsValue)
+                h.punish(miss(lhsValue,rhsValue))
+
+            # Creating new hypotheses
+            for rhsIndex in np.flatnonzero(error>=CREATION_THRESHOLD):
+                hi = [h for h in match if h.rhs == rhsIndex]
+                existingRoots = set()
+                #maxlen = reduce(lambda length,h: len(h) if len(h)>length else length, hi, 0)                   
+                
+                # Extending existing hypotheses
+                for h in hi:
+                    existingRoots.add(h.lhs[-1])
+                    for lhsIndex in np.flatnonzero(s[i-1-len(h)]):
+                        lhs = (lhsIndex,) + h.lhs
+                        lhsValue = impact(lhs,s,i)
+                        self.addOne(lhs,lhsValue,rhsIndex,target[rhsIndex])
+
+                # Adding new root hypotheses
+                for lhsIndex in np.flatnonzero(s[i-1]):
+                    if lhsIndex in existingRoots: continue
+                    self.addOne(lhsIndex,s[i-1].ravel()[lhsIndex],rhsIndex,target[rhsIndex])
+
 
     def match(self,s):
         """Returns an iterator over all hypotheses matching specified sequence s"""
@@ -79,11 +90,11 @@ class ChanPsl(Psl):
                     yield h
             if not matchingHypotheses: break
 
-    def predict(self,s,decode=True):
-        hypotheses = self.match(s)
+    def predict(self,s=None,match=None,decode=True):
+        if match is None: match = longest(self.match(s))
         cv = ChannelVector(self.__basis__)
         cvflat = cv.ravel()
-        for h in hypotheses:
+        for h in match:
             cvflat[h.rhs] += h.confidence
         return cv.decode().ravel()[0] if decode else cv
 
@@ -108,5 +119,22 @@ def combine(vlist,listindex=0,combo=None):
                 combo[listindex]=v
                 yield tuple(combo)
 
-def miss(rhsStrength,lhsStrength):
-    return rhsStrength/lhsStrength-rhsStrength
+def impact(lhs,s,i):
+    n = len(lhs)
+    lhsValue = 1.
+    for lhsp,lhsi in enumerate(lhs):
+        lhsValue *= s[i-n+lhsp].ravel()[lhsi]
+    return lhsValue
+
+def longest(match):
+    """Returns the longest hypotheses from specified match"""
+    lng = {}
+    for h in match:
+        parent = h.lhs[1:]+(h.rhs,)
+        if parent in lng:
+            del lng[parent]
+        lng[h.lhs + (h.rhs,)] = h
+    return lng.values()
+
+def miss(lhsStrength,rhsStrength):
+    return lhsStrength/rhsStrength-lhsStrength
