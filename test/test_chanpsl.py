@@ -6,7 +6,7 @@ import chanpy
 from pypsl.chanpsl import ChanPsl, combine, longest
 from pypsl import Library
 
-class TestPsl(unittest.TestCase):
+class TestChanPsl(unittest.TestCase):
     def setUp(self):
         pass
 
@@ -66,10 +66,19 @@ class TestPsl(unittest.TestCase):
 
     def test_train(self):
         psl = ChanPsl(10,minValue=0,maxValue=10)
-        s = [1,2,3,4]
+        #s = [1,2,3,4,5,6,7]
+        s = [1,2,3]
         cs = psl.encode(s)
-        psl.train(cs)
+        
+        for epoch in range(1):
+            psl.train(cs)
+            #print('Epoch',epoch+1,[psl.predict(cs[:i]) for i in range(1,len(s))])
+        print('Total error:',sum([abs(psl.predict(cs[:i])-s[i]) for i in range(1,len(s))]))
+        print(len(psl.library))
         print(psl.library)
-        print(longest(psl.match(cs[:1])))
-        print(psl.predict(cs[:1],decode=False))
-        self.assertEqual(psl.predict(cs[:4]),4)
+        #print(longest(psl.match(cs[:3])))
+        for i in range (1,3):
+            print('Predict %d:'%i,psl.predict(psl.encode(i)))
+        
+        for h in psl.library: print(h,h.coverage)
+        #self.assertAlmostEqual(psl.predict(cs[:3]),4)

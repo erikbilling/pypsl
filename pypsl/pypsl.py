@@ -128,7 +128,7 @@ class Library:
 
     def __init__(self,items=None,selector=DefaultSelector(),hypothesisClass = Hypothesis):
         self.__lib__ = dict()
-        assert issubclass(hypothesisClass,Hypothesis)
+        assert issubclass(hypothesisClass,AbstractHypothesis)
         self.__hypothesis_class__ = hypothesisClass
         self.selector = selector
         if items: 

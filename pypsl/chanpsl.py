@@ -4,7 +4,7 @@ This is an extension of pypsl that uses channel representations.
 
 import numpy as np
 from functools import reduce
-from pypsl import Psl, Library, Hypothesis, DefaultSelector
+from pypsl import Psl, Library, AbstractHypothesis, DefaultSelector
 from chanpy import Cos2ChannelBasis, ChannelVector
 
 # class ChanSelector(AbstractSelector):
@@ -13,16 +13,19 @@ from chanpy import Cos2ChannelBasis, ChannelVector
         
 CREATION_THRESHOLD = 0.01
 
-class ChanHypothesis(Hypothesis):
+class ChanHypothesis(AbstractHypothesis):
 
-    def __init__(self,lhs,rhs,lhsValue,rhsValue):
+    def __init__(self,lhs,rhs,strength,coverage=1):
         super().__init__(lhs,rhs)
-        self.lhsValue = lhsValue
-        self.rhsValue = rhsValue
+        self.strength = strength
+        self.coverage = coverage
+
+    def __repr__(self):
+            return '{0}=>{1}({2:.2f})'.format(repr(self.lhs),repr(self.rhs),self.strength)
 
     @property
     def confidence(self):
-        return self.rhsValue/self.lhsValue
+        return self.strength/self.coverage
 
 class ChanLibrary(Library):
 
@@ -43,11 +46,11 @@ class ChanPsl(Psl):
         for li in np.flatnonzero(lhs):
             lhsKey = (li,) + baseLhs
             for ri in np.flatnonzero(rhs):
-                self.addOne(lhsKey,ri,lhs[li],rhs[ri])
+                self.addOne(lhsKey,ri,rhs[ri])
 
-    def addOne(self,lhsIndex,rhsIndex,lhsValue,rhsValue):
+    def addOne(self,lhsIndex,rhsIndex,strength):
         if not isinstance(lhsIndex,tuple): lhsIndex = (lhsIndex,)
-        self.library.add(lhsIndex,rhsIndex,1,rhsValue)
+        self.library.add(lhsIndex,rhsIndex,strength,1)
 
     def train(self, s, startIndex=1, stopIndex=0):
         """Trains PSL on the sequence s, covering the range startIndex to stopIndex"""
@@ -55,20 +58,19 @@ class ChanPsl(Psl):
         for i in range(startIndex,stopIndex or len(s)):
             target = s[i].ravel()
             match = list(self.match(s[:i]))
-
-            prediction = self.predict(s[:i],match=longest(match),decode=False)
+            #longMatch = longest(match)
+            prediction = self.predict(s[:i],match=match,decode=False)
             error = (s[i]-prediction).ravel()
             #correct = [h for h in match if target[h.rhs] <= h.confidence]
             
             # Adjusting weights of existing hypotheses
             for h in match:
-                lhsValue = impact(h.lhs,s,i)
-                rhsValue = error[h.rhs]
-                h.lhsValue += 1.
-                h.rhsValue += rhsValue
+                #h.coverage += 1
+                if error[h.rhs] > 0:
+                    h.strength += error[h.rhs] * support(h.lhs,s,i)
 
             # Creating new hypotheses
-            for rhsIndex in np.flatnonzero(error>=CREATION_THRESHOLD):
+            for rhsIndex in np.flatnonzero(error):
                 hi = [h for h in match if h.rhs == rhsIndex]
                 existingRoots = set()
                 #maxlen = reduce(lambda length,h: len(h) if len(h)>length else length, hi, 0)                   
@@ -76,15 +78,16 @@ class ChanPsl(Psl):
                 # Extending existing hypotheses
                 for h in hi:
                     existingRoots.add(h.lhs[-1])
+                    if error[h.rhs] > 0: continue
                     for lhsIndex in np.flatnonzero(s[i-1-len(h)]):
                         lhs = (lhsIndex,) + h.lhs
-                        lhsValue = impact(lhs,s,i)
-                        self.addOne(lhs,rhsIndex,lhsValue,target[rhsIndex])
+                        if lhs in self.library.__lib__: continue
+                        self.addOne(lhs,rhsIndex,error[rhsIndex])
 
                 # Adding new root hypotheses
                 for lhsIndex in np.flatnonzero(s[i-1]):
                     if lhsIndex in existingRoots: continue
-                    self.addOne(lhsIndex,rhsIndex,s[i-1].ravel()[lhsIndex],target[rhsIndex])
+                    self.addOne(lhsIndex,rhsIndex,error[rhsIndex])
 
 
     def match(self,s):
@@ -106,7 +109,7 @@ class ChanPsl(Psl):
         cv = ChannelVector(self.__basis__)
         cvflat = cv.ravel()
         for h in match:
-            cvflat[h.rhs] += h.confidence*impact(h.lhs,s)
+            cvflat[h.rhs] += h.confidence*support(h.lhs,s)
         return cv.decode().ravel()[0] if decode else cv
 
     def encode(self,v):
@@ -115,6 +118,13 @@ class ChanPsl(Psl):
         else:
             return self.__basis__.encode(v)
 
+    def decode(self,v):
+        if isinstance(v,np.ndarray):
+            cv = ChannelVector(self.__basis__)
+            cv[:] = v
+            return cv.decode().ravel()[0]
+        else:
+            return [self.decode(i) for i in v]
 # Helper functions
 
 def combine(vlist,listindex=0,combo=None):
@@ -130,7 +140,7 @@ def combine(vlist,listindex=0,combo=None):
                 combo[listindex]=v
                 yield tuple(combo)
 
-def impact(lhs,s,i=0):
+def support(lhs,s,i=0):
     n = len(lhs)
     lhsValue = 1.
     for lhsp,lhsi in enumerate(lhs):
