@@ -16,9 +16,15 @@ class Psl:
         h = self.select(s)
         return h.rhs if h else None
 
+    def formatSequence(self,s):
+        if isinstance(s,str): 
+            return tuple(s)
+        return s
+    
     def train(self, s, startIndex=1, stopIndex=0):
         """Trains PSL on the sequence s, covering the range startIndex to stopIndex"""
         lenSelector = LengthSelector()
+        s = self.formatSequence(s)
         for i in range(startIndex,stopIndex or len(s)):
             match = list(self.match(s[:i]))
             target = s[i]
@@ -30,7 +36,7 @@ class Psl:
                 if selected: selected.punish()
                 selectedCorrect = lenSelector.select(correct)
                 if not selectedCorrect:
-                    self.library.add(s[i-1],target)
+                    self.library.add((s[i-1],),target)
                 elif len(selectedCorrect) <= len(selected):
                     self.library.add(s[i-1-len(selectedCorrect):i],target)
             for h in correct: 
@@ -38,6 +44,7 @@ class Psl:
 
     def match(self,s):
         """Returns an iterator over all hypotheses matching specified sequence s"""
+        s = self.formatSequence(s)
         for hlen in range(1,len(s)+1):
             hs = self.library.match(s[-hlen:])
             if not hs: break
