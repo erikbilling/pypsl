@@ -17,9 +17,9 @@ class Psl:
         return h.rhs if h else None
 
     def formatSequence(self,s):
-        if isinstance(s,str): 
-            return tuple(s)
-        return s
+        if isinstance(s,(tuple,list)): 
+            return s
+        return tuple(s)
     
     def train(self, s, startIndex=1, stopIndex=0):
         """Trains PSL on the sequence s, covering the range startIndex to stopIndex"""
