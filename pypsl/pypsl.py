@@ -54,7 +54,7 @@ class Psl:
     def select(self,s,default=None):
         return self.library.selector.select(self.match(s),default)
 
-class AbstractHypothesis:
+class AbstractHypothesis(ABC):
 
     def __init__(self,lhs,rhs):
         self.lhs = lhs
@@ -99,7 +99,7 @@ class Hypothesis(AbstractHypothesis):
     def confidence(self):
         return len(self.lhs) * self.hits/(self.hits+self.misses)
 
-class AbstractSelector:
+class AbstractSelector(ABC):
     """Selects the best hypotheses from a set of matching hypotheses"""
 
     @abstractmethod
